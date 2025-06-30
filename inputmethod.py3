@@ -3,6 +3,7 @@
 from os import environ, listdir
 from os.path import isdir, isfile, join
 from re import search
+from typing import Optional
 
 def input_method_exist(im):
   if not im:
@@ -14,7 +15,7 @@ def input_method_exist(im):
       return True
   return False
 
-def get_current_input_method():
+def get_current_input_method() -> Optional[str]:
   pattern = r'^export\s+(INPUT_METHOD|XMODIFIERS)=("@im=)?([A-Za-z0-9]+)(")?$'
   pattern_sysconfig = '^INPUT_METHOD="([A-Za-z0-9]+)"$'
   input_method = ""
@@ -24,7 +25,7 @@ def get_current_input_method():
   # the first user session started via systemd is always the display manager's greeter
   # whose $HOME is, eg: /var/lib/sddm
   if not home.startswith("/home"):
-    return
+    return None
 
   for conf in [".xim", ".i18n", ".profile", ".login"]:
     conf = join(home, conf)
@@ -45,8 +46,7 @@ def get_current_input_method():
   if input_method_exist(input_method):
     if input_method == "fcitx5":
       input_method = "fcitx"
-    print("INPUT_METHOD={}".format(input_method.lower()))
-    return
+    return input_method.lower()
 
   # try to use INPUT_METHOD in /etc/sysconfig/language
   if isfile("/etc/sysconfig/language"):
@@ -61,8 +61,7 @@ def get_current_input_method():
   if input_method_exist(input_method):
     if input_method == "fcitx5":
       input_method = "fcitx"
-    print("INPUT_METHOD={}".format(input_method.lower()))
-    return
+    return input_method.lower()
 
   # use language default
   lang = environ.get("LC_CTYPE")
@@ -82,7 +81,7 @@ def get_current_input_method():
       inputmethods = [f for f in listdir(path) if isfile(join(path, f))]
   if not inputmethods:
     # leave INPUT_METHOD unset
-    return
+    return None
 
   i = 0
   j = 0
@@ -100,6 +99,26 @@ def get_current_input_method():
   if input_method:
     if input_method == "fcitx5":
       input_method = "fcitx"
-    print("INPUT_METHOD={}".format(input_method.lower()))
+    return input_method.lower()
+  return None
 
-get_current_input_method()
+def print_environment_variables(input_method: Optional[str]):
+  if input_method is None:
+    # Leave INPUT_METHOD unset
+    pass
+  else:
+    if input_method == "ibus":
+      # If application uses the legacy IBus GTK IM module, ibus-ui-gtk3 is
+      # unstable under a Wayland session
+      # Use Wayland native input method protocol for GTK and Qt applications
+      pass
+    else:
+      print("GTK_IM_MODULE={}".format(input_method))
+      print("QT_IM_MODULE={}".format(input_method))
+
+    # Set XMODIFIERS for X11 applications
+    print("XMODIFIERS=@im={}".format(input_method))
+    print("INPUT_METHOD={}".format(input_method))
+
+input_method = get_current_input_method()
+print_environment_variables(input_method)
